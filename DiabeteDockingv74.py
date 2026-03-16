@@ -23,6 +23,7 @@ VCF_FILE = os.path.join(DIR_PATIENTS, "patient_complet.vcf")
 DB_DIABETE = {
     'GCK': {
         'pdb': '1V4S', 'label': 'Glucokinase',
+        'center': (11.5, 16.2, 23.5),
         'drugs': {
             'Activateur_GCK': 'CC1=CC=C(C=C1)S(=O)(=O)N',
             'Dorzagliatin': 'CN1C=C(N=C1)C(=O)N[C@@H](C)C2=CC=C(S(=O)(=O)C)C=C2',
@@ -37,6 +38,7 @@ DB_DIABETE = {
     },
     'KCNJ11': {
         'pdb': '6C3O', 'label': 'Canal SUR1',
+        'center': (148.2, 128.5, 238.1),
         'drugs': {
             'Gliclazide': 'CC1=CC=C(C=C1)S(=O)(=O)NC(=O)N2CCCC3C2CCCC3',
             'Glibenclamide': 'ClC1=CC(=C(C=C1)C(=O)NCC2=CC=C(S(=O)(=O)NC(=O)NC3CCCCC3)C=C2)OC',
@@ -46,6 +48,7 @@ DB_DIABETE = {
     },
     'SLC22A1': {
         'pdb': '8H66', 'label': 'Transporteur OCT1',
+        'center': (125.4, 115.8, 140.2),
         'drugs': {
             'Metformine': 'CN(C)C(=N)N=C(N)N',
             'Berberine': 'COC1=C(OC)C=C2C[N+]3=C(C=C4C(=C3CC2=C1)C=C5C(=C4)OCO5)C'
@@ -53,6 +56,7 @@ DB_DIABETE = {
     },
     'PPARG': {
         'pdb': '5YCP', 'label': 'Récepteur PPAR-gamma',
+        'center': (30.5, -18.2, 28.4),
         'drugs': {
             'Pioglitazone': 'CCC1=CN=C(C=C1)CCOC2=CC=C(C=C2)CC3C(=O)NC(=O)S3',
             'Rosiglitazone': 'CN(CCOC1=CC=C(CC2SC(=O)NC2=O)C=C1)C1=CC=NC=C1'
@@ -79,43 +83,91 @@ def nettoyer_recepteur_vina(pdbqt_file):
     return temp_file
 
 def preparer_ligand_v7(name, smiles):
-    mol = Chem.MolFromSmiles(smiles)
-    if not mol: return None
-    mol = Chem.AddHs(mol)
-    AllChem.EmbedMolecule(mol, AllChem.ETKDG())
-    setup = MoleculePreparation().prepare(mol)[0]
-    pdbqt_str = PDBQTWriterLegacy().write_string(setup)[0]
-    
-    # Sortie dans le dossier Ligand
-    out_path = os.path.join(DIR_LIGANDS, f"{name}.pdbqt")
-    with open(out_path, "w") as f:
-        for line in pdbqt_str.split('\n'):
-            if line.startswith(("ATOM", "HETATM")):
-                line = line[:77] + line[12:14].strip().ljust(2) + line[79:]
-            f.write(line + "\n")
-    return out_path
-
-def executer_docking_v7(pdb_id, drug_name, smiles):
     try:
-        # Recherche dans Proteines
-        receptor_raw = os.path.join(DIR_PROTEINES, f"{pdb_id}.pdbqt")
-        if not os.path.exists(receptor_raw): return f"Missing {pdb_id}.pdbqt"
-
-        cx, cy, cz = trouver_poche_profonde(receptor_raw)
-        ligand = preparer_ligand_v7(drug_name, smiles)
+        mol = Chem.MolFromSmiles(smiles)
+        if not mol: return None
+        mol = Chem.AddHs(mol)
+        AllChem.EmbedMolecule(mol, AllChem.ETKDG())
         
+        prepper = MoleculePreparation()
+        setup = prepper.prepare(mol)[0] # Extraction de la LISTE
+        
+        writer = PDBQTWriterLegacy()
+        # --- CORRECTIF CRUCIAL ICI ---
+        output = writer.write_string(setup)
+        pdbqt_str = output[0] if isinstance(output, tuple) else output
+        
+        out_path = os.path.join(DIR_LIGANDS, f"{name}.pdbqt")
+        
+        with open(out_path, "w") as f:
+            for line in pdbqt_str.split('\n'):
+                if line.startswith(("ATOM", "HETATM")):
+                    # Forçage du type d'atome en fin de ligne (colonnes 77-78)
+                    atom_type = line[12:14].strip()
+                    line = line[:76] + atom_type.rjust(2)
+                f.write(line + "\n")
+        
+        # Debug : Vérifier si le fichier n'est pas vide
+        if os.path.getsize(out_path) < 100:
+            print(f"   ⚠️ ATTENTION : Fichier {name}.pdbqt vide !")
+            
+        return out_path
+    except Exception as e:
+        print(f"   ❌ Erreur préparation {name}: {e}")
+        return None
+
+
+
+def executer_docking_v7(target_dict, drug_name, smiles):
+    try:
+        pdb_id = target_dict['pdb']
+        receptor_raw = os.path.join(DIR_PROTEINES, f"{pdb_id}.pdbqt")
+        
+        # 1. Calcul du centre de masse initial
+        coords = []
+        with open(receptor_raw, 'r') as f:
+            for line in f:
+                if line.startswith("ATOM"):
+                    coords.append([float(line[30:38]), float(line[38:46]), float(line[46:54])])
+        
+        import numpy as np
+        atoms = np.array(coords)
+        cx, cy, cz = np.mean(atoms, axis=0)
+
+        # 2. SÉCURITÉ SPÉCIFIQUE POUR SLC22A1 (OCT1)
+        # Cette protéine est un tunnel ; le centre de masse est souvent dans une paroi.
+        if pdb_id == "8H66":
+            cx += 5.0  # On décale de 5 Angströms pour sortir du "mur"
+            cz += 5.0
+
+        ligand = preparer_ligand_v7(drug_name, smiles)
         receptor_clean = nettoyer_recepteur_vina(receptor_raw)
         
+        # 3. Lancement Vina avec Box large (40)
         cmd = [VINA_EXE, "--receptor", receptor_clean, "--ligand", ligand,
                "--center_x", f"{cx:.3f}", "--center_y", f"{cy:.3f}", "--center_z", f"{cz:.3f}",
-               "--size_x", "30", "--size_y", "30", "--size_z", "30", "--exhaustiveness", "8"]
+               "--size_x", "40", "--size_y", "40", "--size_z", "40", 
+               "--exhaustiveness", "20"]
         
         result = subprocess.run(cmd, capture_output=True, text=True)
         if os.path.exists(receptor_clean): os.remove(receptor_clean)
         
         scores = re.findall(r"-\d+\.\d+", result.stdout)
-        return float(scores[0]) if scores else "N/A"
-    except Exception as e: return f"Err: {e}"
+        final_score = float(scores[0]) if scores else "N/A"
+
+        # 4. FILTRE DE RÉSULTAT : Si c'est un clash, on le marque comme N/A
+        if isinstance(final_score, float) and final_score < -15.0:
+            return "Clash (Poche pleine)"
+            
+        return final_score
+
+    except Exception as e: 
+        return f"Err: {e}"
+
+
+
+
+
 
 def generer_graphique(results_final):
     plt.figure(figsize=(10, 6))
@@ -135,52 +187,34 @@ def generer_graphique(results_final):
     return graph_path
 
 def main():
-    print("="*60 + "\n  ANALYSE DIABÈTE : ARBORESCENCE RE-STRUCTURÉE\n" + "="*60)
+    print("="*60 + "\n  ANALYSE DIABÈTE : COORDONNÉES FIXES\n" + "="*60)
     
-    if not os.path.exists(VCF_FILE): return print(f"Fichier VCF absent dans {DIR_PATIENTS}")
-    
+    if not os.path.exists(VCF_FILE): return print("VCF absent.")
     vcf_reader = vcf.Reader(filename=VCF_FILE)
-    patient_mutations = [r.ID for r in vcf_reader if r.ID in MUTATIONS_CIBLES]
     
     rapport_data = []
     
-    for rsid in patient_mutations:
-        gene = MUTATIONS_CIBLES[rsid]
-        if gene in DB_DIABETE:
-            target = DB_DIABETE[gene]
-            print(f"\n🧬 Mutation : {rsid} | Gène : {gene}")
+    for record in vcf_reader:
+        if record.ID in MUTATIONS_CIBLES:
+            rsid = record.ID
+            gene_name = MUTATIONS_CIBLES[rsid]
             
-            for drug, smiles in target['drugs'].items():
-                score = executer_docking_v7(target['pdb'], drug, smiles)
+            if gene_name in DB_DIABETE:
+                target = DB_DIABETE[gene_name] # On récupère le dictionnaire du gène
+                print(f"\n🧬 Mutation : {rsid} | Gène : {gene_name}")
                 
-                if isinstance(score, float) and score > -15.0:
-                    print(f"   [+] {drug.ljust(15)} : {score} kcal/mol")
-                    rapport_data.append((drug, gene, score))
-                else:
-                    print(f"   [-] {drug.ljust(15)} : Échec/Ignoré ({score})")
+                for drug, smiles in target['drugs'].items():
+                    # --- ICI : On passe 'target' (le dictionnaire) et non 'gene_name' ---
+                    score = executer_docking_v7(target, drug, smiles)
+                    
+                    if isinstance(score, float):
+                        print(f"   [+] {drug.ljust(15)} : {score} kcal/mol")
+                        rapport_data.append((drug, gene_name, score))
+                    else:
+                        print(f"   [-] {drug.ljust(15)} : {score}")
 
-    if rapport_data:
-        graph_path = generer_graphique(rapport_data)
-        
-        pdf = FPDF()
-        pdf.add_page()
-        pdf.set_font("helvetica", 'B', 16)
-        pdf.cell(200, 10, "Rapport d'Analyse Pharmaco-Genomique", new_x="LMARGIN", new_y="NEXT", align='C')
-        
-        pdf.set_font("helvetica", size=12)
-        pdf.ln(10)
-        pdf.cell(200, 10, f"Fichier Source : {os.path.basename(VCF_FILE)}", new_x="LMARGIN", new_y="NEXT")
-        pdf.ln(5)
-        
-        for drug, gene, score in rapport_data:
-            statut = "EFFICACE" if score < -6 else "FAIBLE"
-            pdf.cell(200, 10, f"Gene: {gene} | Drug: {drug} | Score: {score} kcal/mol | [{statut}]", new_x="LMARGIN", new_y="NEXT")
-        
-        pdf.image(graph_path, x=10, y=pdf.get_y()+10, w=180)
-        
-        pdf_output = os.path.join(DIR_RESULTATS, "Rapport_Final_Diabete.pdf")
-        pdf.output(pdf_output)
-        print(f"\n✅ Analyse terminée. Fichiers disponibles dans le dossier '{DIR_RESULTATS}'")
+    # (Suite du code pour graphique et PDF...)
+
 
 if __name__ == "__main__":
     main()

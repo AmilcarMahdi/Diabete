@@ -1,10 +1,10 @@
 import numpy as np
 import os
 
-# --- CONFIGURATION DE L'ARBORESCENCE ---
 DIR_PROTEINES = "Proteines"
 
 def trouver_poche_profonde(pdb_input):
+    # 1. Gestion du chemin
     if os.path.exists(pdb_input):
         pdb_path = pdb_input
     else:
@@ -12,60 +12,44 @@ def trouver_poche_profonde(pdb_input):
         if not os.path.exists(pdb_path):
             pdb_path = os.path.join(DIR_PROTEINES, f"{pdb_input}.pdb")
 
-    if not os.path.exists(pdb_path):
-        print(f"   [PocketFinderV13] Erreur : Fichier introuvable -> {pdb_path}")
-        return None
+    if not os.path.exists(pdb_path): return None
         
     coords = []
-    try:
-        with open(pdb_path, "r") as f:
-            for line in f:
-                if line.startswith(("ATOM", "HETATM")):
-                    try:
-                        x = float(line[30:38].strip())
-                        y = float(line[38:46].strip())
-                        z = float(line[46:54].strip())
-                        coords.append([x, y, z])
-                    except (ValueError, IndexError):
-                        continue
-        
-        if not coords:
-            print(f"   [PocketFinderV13] Erreur : Aucune coordonnee dans {pdb_path}")
-            return None
-            
-        atoms = np.array(coords)
-        np.random.seed(42) 
-        
-        min_c = np.min(atoms, axis=0)
-        max_c = np.max(atoms, axis=0)
-        
-        grid = np.random.uniform(min_c, max_c, (5000, 3)) 
-        
-        meilleure_poche = np.mean(atoms, axis=0)
-        max_voisins = 0 
-        
-        for point in grid:
-            dist = np.linalg.norm(atoms - point, axis=1)
-            
-            if np.sum(dist < 2.8) == 0: 
-                score = np.sum((dist > 2.8) & (dist < 6.5)) 
-                
-                if score > max_voisins:
-                    max_voisins = score
-                    meilleure_poche = point
-                    
-        return meilleure_poche.tolist()
+    # 2. Extraction des coordonnées ATOM uniquement (on ignore le vide)
+    with open(pdb_path, "r") as f:
+        for line in f:
+            if line.startswith("ATOM"):
+                try:
+                    coords.append([float(line[30:38]), float(line[38:46]), float(line[46:54])])
+                except: continue
+    
+    if not coords: return None
+    atoms = np.array(coords)
 
-    except Exception as e:
-        print(f"   [PocketFinderV13] Erreur technique : {e}")
-        return None
+    # 3. ALGORITHME DE DENSITÉ (Recherche du point le plus "entouré")
+    # On cherche l'atome qui a le plus de voisins dans un rayon de 10A
+    best_atom_idx = 0
+    max_neighbors = 0
+    
+    # Pour accélérer, on échantillonne un atome sur 5
+    for i in range(0, len(atoms), 5):
+        # Distance entre l'atome i et tous les autres
+        diff = atoms - atoms[i]
+        dist_sq = np.sum(diff**2, axis=1)
+        # On compte combien d'atomes sont entre 3.5A et 10A (la "coquille" de la poche)
+        neighbors = np.sum((dist_sq > 12.25) & (dist_sq < 100.0))
+        
+        if neighbors > max_neighbors:
+            max_neighbors = neighbors
+            best_atom_idx = i
+            
+    # Le centre de la poche est l'atome le plus enfoui
+    poche_coords = atoms[best_atom_idx].tolist()
+    
+    return poche_coords
 
 if __name__ == "__main__":
-    proteine_test = "1V4S" 
-    print(f"--- TEST POCKETFINDER V13 ---")
-    print(f"Dossier cible : {DIR_PROTEINES}")
-    resultat = trouver_poche_profonde(proteine_test)
-    if resultat:
-        print(f"Resultat : {resultat}")
-    else:
-        print(f"Echec du test pour {proteine_test}")
+    test_id = "1V4S"
+    print(f"--- TEST POCKETFINDER V15 (DENSITÉ) ---")
+    res = trouver_poche_profonde(test_id)
+    print(f"Coordonnées trouvées : {res}")
