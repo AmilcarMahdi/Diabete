@@ -1,0 +1,23 @@
+============================================================
+       RAPPORT DE PHARMACOGÉNOMIQUE : DIABÈTE
+============================================================
+Date de l'analyse : 14/03/2026 01:41
+
+GÈNE : GCK | DIAGNOSTIC : Diabète Monogénique (MODY 2)
+IMPACT : Défaut du capteur de glucose pancréatique.
+------------------------------
+ > Metformine : 20/100 - Peu efficace : glycémie stable mais élevée.
+
+GÈNE : ATM | DIAGNOSTIC : Répondeur Élevé (Type 2)
+IMPACT : Variante associée à une meilleure réponse à la metformine.
+------------------------------
+ > Metformine : 90/100 - Excellente réponse attendue.
+
+GÈNE : SLC22A1 | DIAGNOSTIC : Transporteur réduit
+IMPACT : Diminution de l'absorption de la metformine par le foie.
+------------------------------
+ > Metformine : 40/100 - Efficacité réduite.
+
+============================================================
+Note : Ce rapport est généré par ordinateur (Projet Diabete).
+============================================================

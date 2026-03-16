@@ -1,0 +1,9 @@
+receptor = 1V4S.pdbqt
+ligand = GCK_Activator.pdbqt
+center_x = 12.217
+center_y = 18.918
+center_z = 64.596
+size_x = 18.0
+size_y = 18.0
+size_z = 18.0
+exhaustiveness = 12

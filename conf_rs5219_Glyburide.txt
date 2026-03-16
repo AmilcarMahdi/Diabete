@@ -1,0 +1,9 @@
+receptor = 6C3O.pdbqt
+ligand = Glyburide.pdbqt
+center_x=234.644
+center_y=147.542
+center_z=189.785
+size_x=15.0
+size_y=15.0
+size_z=15.0
+exhaustiveness=8

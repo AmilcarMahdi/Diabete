@@ -1,0 +1,9 @@
+receptor = 6C3O.pdbqt
+ligand = Gliclazide.pdbqt
+center_x = 197.556
+center_y = 149.701
+center_z = 161.073
+size_x = 12.0
+size_y = 12.0
+size_z = 12.0
+exhaustiveness = 12

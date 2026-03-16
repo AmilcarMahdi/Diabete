@@ -1,0 +1,17 @@
+# Dossiers de données lourdes
+Proteines/
+Ligands/
+Resultats/
+Patients/
+
+# Fichiers binaires et rapports
+*.pdb
+*.pdbqt
+*.png
+*.pdf
+vina.exe
+
+# Python
+__pycache__/
+*.pyc
+.env

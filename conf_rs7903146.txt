@@ -1,0 +1,9 @@
+receptor = 2G4B.pdbqt
+ligand = GLP1_Analogue.pdbqt
+center_x = 68.755
+center_y = 163.305
+center_z = -57.242
+size_x = 18.0
+size_y = 18.0
+size_z = 18.0
+exhaustiveness = 12
