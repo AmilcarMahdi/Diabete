@@ -15,7 +15,8 @@ MUTATIONS_CIBLES = {
     'rs5219': {'pdb': '6C3O', 'label': 'Canal SUR1'},
     'rs4124874': {'pdb': '8H66', 'label': 'Transporteur OCT1'},
     'rs7903146': {'pdb': '2G4B', 'label': 'Signal GLP-1'},
-    'rs1801282': {'pdb': '5YCP', 'label': 'Récepteur PPAR-gamma'}
+    'rs1801282': {'pdb': '5YCP', 'label': 'Récepteur PPAR-gamma'},
+    'rs11212617_v2': {'pdb': '5O1E', 'label': 'ATM Kinase (Domaine)'}
 }
 
 def telecharger_pdb(pdb_id):
